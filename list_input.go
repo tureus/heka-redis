@@ -54,10 +54,7 @@ func (rli *RedisListInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper)
 	}
 
 	for {
-		fmt.Printf("BLPOP %v\n", rli.conf.ListName)
 		reply, err := rli.conn.Do("BLPOP", rli.conf.ListName, "0")
-
-		fmt.Printf("reply: %v, error: %v\n", reply, err)
 
 		if err == nil {
 			vals, extracterr := redis.Strings(reply, nil)
@@ -68,7 +65,6 @@ func (rli *RedisListInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper)
 				pack.Message.SetType("redis_list")
 				// pack.Message.SetLogger(n.Channel)
 				pack.Message.SetPayload(vals[1])
-				fmt.Printf("SetPayload: %v\n", vals[1])
 				pack.Message.SetTimestamp(time.Now().UnixNano())
 
 				var packs []*pipeline.PipelinePack
