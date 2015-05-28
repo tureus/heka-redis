@@ -54,17 +54,21 @@ func (rli *RedisListInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper)
 	}
 
 	for {
-		pop, err := rli.conn.Do("BLPOP", rli.conf.ListName)
+		fmt.Printf("BLPOP %v\n", rli.conf.ListName)
+		reply, err := rli.conn.Do("BLPOP", rli.conf.ListName, "0")
 
-		fmt.Printf("pop: %v, error: %v\n", err, pop)
+		fmt.Printf("reply: %v, error: %v\n", reply, err)
 
-		if err != nil {
-			switch pop.(type) {
-			case string:
+		if err == nil {
+			vals, extracterr := redis.Strings(reply, nil)
+
+			if extracterr == nil {
+
 				pack = <-packSupply
 				pack.Message.SetType("redis_list")
 				// pack.Message.SetLogger(n.Channel)
-				pack.Message.SetPayload(pop.(string))
+				pack.Message.SetPayload(vals[1])
+				fmt.Printf("SetPayload: %v\n", vals[1])
 				pack.Message.SetTimestamp(time.Now().UnixNano())
 
 				var packs []*pipeline.PipelinePack
@@ -80,49 +84,17 @@ func (rli *RedisListInput) Run(ir pipeline.InputRunner, h pipeline.PluginHelper)
 					}
 				} else {
 					if e != nil {
-						ir.LogError(fmt.Errorf("Couldn't parse Redis message: %s", pop.(string)))
+						ir.LogError(fmt.Errorf("Couldn't parse Redis message: %s", vals))
 					}
 					pack.Recycle()
 				}
+			} else {
+				fmt.Printf("err: %v\n", extracterr)
 			}
 		} else {
-			fmt.Printf("error: %v\n", err)
+			fmt.Printf("type: %T, error: %v\n", reply, err)
 			return err
 		}
-
-		// switch n := psc.Receive().(type) {
-		// case redis.PMessage:
-		// 	// Grab an empty PipelinePack from the InputRunner
-		// 	pack = <-packSupply
-		// 	pack.Message.SetType("redis_pub_sub")
-		// 	pack.Message.SetLogger(n.Channel)
-		// 	pack.Message.SetPayload(string(n.Data))
-		// 	pack.Message.SetTimestamp(time.Now().UnixNano())
-		// 	var packs []*pipeline.PipelinePack
-		// 	if decoder == nil {
-		// 		packs = []*pipeline.PipelinePack{pack}
-		// 	} else {
-		// 		packs, e = decoder.Decode(pack)
-		// 	}
-		// 	if packs != nil {
-		// 		for _, p := range packs {
-		// 			ir.Inject(p)
-		// 		}
-		// 	} else {
-		// 		if e != nil {
-		// 			ir.LogError(fmt.Errorf("Couldn't parse Redis message: %s", n.Data))
-		// 		}
-		// 		pack.Recycle()
-		// 	}
-		// case redis.Subscription:
-		// 	ir.LogMessage(fmt.Sprintf("Subscription: %s %s %d\n", n.Kind, n.Channel, n.Count))
-		// 	if n.Count == 0 {
-		// 		return errors.New("No channel to subscribe")
-		// 	}
-		// case error:
-		// 	fmt.Printf("error: %v\n", n)
-		// 	return n
-		// }
 	}
 
 	return nil
